@@ -58,7 +58,9 @@ end
 
 if MRSCont.flags.hasWater
     OrderNames = horzcat(OrderNames, 'w');
-    OrderNamesFit = horzcat(OrderNamesFit, 'w');
+    if ~strcmp(MRSCont.opts.fit.method,'LCModel')
+        OrderNamesFit = horzcat(OrderNamesFit, 'w');
+    end
 end
 S = orderfields(MRSCont.processed,OrderNames);
 dataPlotNames = fieldnames(S)';
@@ -90,6 +92,9 @@ if MRSCont.flags.didFit
         end
     else
         FitSpecNamesStruct.(FitSpecNames{1}){1} = 'A';
+        if MRSCont.flags.isMEGA
+            FitSpecNamesStruct.(FitSpecNames{1}){2} = 'diff1';
+        end
     end
     MRSCont.overview.FitSpecNamesStruct = FitSpecNamesStruct;
 end
@@ -490,6 +495,16 @@ if MRSCont.flags.didFit
                                         end
                                         MRSCont.overview.Osprey.(['all_models_voxel_' num2str(rr)]).(ModelCombs{sc}){bf,kk,sf}.ppm = ppmRangeData';
                                         MRSCont.overview.Osprey.(['all_models_voxel_' num2str(rr)]).(ModelCombs{sc}){bf,kk,sf}.res = MRSCont.overview.Osprey.(['all_models_voxel_' num2str(rr)]).(ModelCombs{sc}){bf,kk,sf}.data-MRSCont.overview.Osprey.(['all_models_voxel_' num2str(rr)]).(ModelCombs{sc}){bf,kk,sf}.fit;
+                                        if ~isempty(MRSCont.opts.fit.GAP.(FitSpecNamesStruct.metab{sf}))
+                                            MRSCont.overview.Osprey.(['all_models_voxel_' num2str(rr)]).(ModelCombs{sc}){bf,kk,sf}.fit(ppmRangeData>MRSCont.opts.fit.GAP.(FitSpecNamesStruct.metab{sf})(1) & ppmRangeData<MRSCont.opts.fit.GAP.(FitSpecNamesStruct.metab{sf})(2)) = nan;
+                                            MRSCont.overview.Osprey.(['all_models_voxel_' num2str(rr)]).(ModelCombs{sc}){bf,kk,sf}.data(ppmRangeData>MRSCont.opts.fit.GAP.(FitSpecNamesStruct.metab{sf})(1) & ppmRangeData<MRSCont.opts.fit.GAP.(FitSpecNamesStruct.metab{sf})(2)) = nan;
+                                            MRSCont.overview.Osprey.(['all_models_voxel_' num2str(rr)]).(ModelCombs{sc}){bf,kk,sf}.baseline(ppmRangeData>MRSCont.opts.fit.GAP.(FitSpecNamesStruct.metab{sf})(1) & ppmRangeData<MRSCont.opts.fit.GAP.(FitSpecNamesStruct.metab{sf})(2)) = nan;
+                                            names = fields(MRSCont.overview.Osprey.(['all_models_voxel_' num2str(rr)]).(ModelCombs{sc}){bf,kk,sf});
+                                             for f = 6 : length(names)
+                                                MRSCont.overview.Osprey.(['all_models_voxel_' num2str(rr)]).(ModelCombs{sc}){bf,kk,sf}.(names{f})(ppmRangeData>MRSCont.opts.fit.GAP.(FitSpecNamesStruct.metab{sf})(1) & ppmRangeData<MRSCont.opts.fit.GAP.(FitSpecNamesStruct.metab{sf})(2)) = nan;
+                                             end
+                                             MRSCont.overview.Osprey.(['all_models_voxel_' num2str(rr)]).(ModelCombs{sc}){bf,kk,sf}.res(ppmRangeData>MRSCont.opts.fit.GAP.(FitSpecNamesStruct.metab{sf})(1) & ppmRangeData<MRSCont.opts.fit.GAP.(FitSpecNamesStruct.metab{sf})(2)) = nan;
+                                        end
                             end
                         end
                     end
@@ -580,7 +595,7 @@ if MRSCont.flags.hasStatfile % Has stat file
                 statFile.subject = MRSCont.files';
             end
         end
-
+        name{end+1} = 'subject';
     end
 else % No csv file supplied
     MRSCont.overview.groups = ones(MRSCont.nDatasets(1),1); %Create a single group
@@ -601,29 +616,34 @@ end
 statFile = addprop(statFile, {'VariableLongNames'}, {'variable'}); % add long name to table properties
 % Loop over field names to populate descriptive fields of table for JSON export
 for JJ = 1:length(name)
-    switch name{JJ}
+    switch lower(name{JJ})
         case 'subject'
-            statFile.Properties.CustomProperties.VariableLongNames{'subject'} = 'Subject'; %Write properties for json
-            statFile.Properties.VariableDescriptions{'subject'} = 'Subject indetifier';
-            statFile.Properties.VariableUnits{'subject'} = 'arbitrary';
+            statFile.Properties.CustomProperties.VariableLongNames{name{JJ}} = 'Subject'; %Write properties for json
+            statFile.Properties.VariableDescriptions{name{JJ}} = 'Subject indetifier';
+            statFile.Properties.VariableUnits{name{JJ}} = 'arbitrary';
         case 'group'
-            statFile.Properties.CustomProperties.VariableLongNames{'group'} = 'Group'; %Write properties for json
-            statFile.Properties.VariableDescriptions{'group'} = 'Sub-group the subject belongs to';
-            statFile.Properties.VariableUnits{'group'} = 'arbitrary';
+            statFile.Properties.CustomProperties.VariableLongNames{name{JJ}} = 'Group'; %Write properties for json
+            statFile.Properties.VariableDescriptions{name{JJ}} = 'Sub-group the subject belongs to';
+            statFile.Properties.VariableUnits{name{JJ}} = 'arbitrary';
         case 'exclude'
-            statFile.Properties.CustomProperties.VariableLongNames{'exclude'} = 'Excluded'; %Write properties for json
-            statFile.Properties.VariableDescriptions{'exclude'} = 'Whether to exclude subject';
-            statFile.Properties.VariableUnits{'exclude'} = 'arbitrary';
+            statFile.Properties.CustomProperties.VariableLongNames{name{JJ}} = 'Excluded'; %Write properties for json
+            statFile.Properties.VariableDescriptions{name{JJ}} = 'Whether to exclude subject';
+            statFile.Properties.VariableUnits{name{JJ}} = 'arbitrary';
+        otherwise
+            % Pull through other user-defined fields:
+            statFile.Properties.CustomProperties.VariableLongNames{name{JJ}} = name{JJ}; %Write properties for json
+            statFile.Properties.VariableDescriptions{name{JJ}} = 'User-defined field';
+            statFile.Properties.VariableUnits{name{JJ}} = 'Unknown';
     end
 end
-osp_WriteBIDsTable(statFile,[MRSCont.outputFolder  filesep  'subject_names_and_excluded'])
+osp_WriteBIDsTable(statFile,fullfile(MRSCont.outputFolder,'subject_names_and_excluded'));
 
 %Exclude datasets based on the exclude field in the MRSConainer. THis can
 %be triggered by pressing the left (remove) and right (add) arrow buttons
 %in the listbox of the GUI
 if isfield(MRSCont, 'exclude')
     if~isempty(MRSCont.exclude)
-        MRSCont.overview.groups(MRSCont.exclude) = 0;
+        MRSCont.overview.groups(MRSCont.exclude) = [];
         max_g = max(MRSCont.overview.groups);
         for kk = 1 : max(MRSCont.overview.groups)
             remove = 0;

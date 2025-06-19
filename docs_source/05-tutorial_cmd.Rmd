@@ -14,7 +14,7 @@ MRSCont = OspreyJob('Path/To/Job/File');
 MRSCont will now contain the options and file locations for your data, as specified in the job file. Next, the data can be loaded:
 
 ```octave
-MRSCont = OspreyLoad(MRScont);
+MRSCont = OspreyLoad(MRSCont);
 ```
 
 The substructure, MRSCont.raw, now contains the raw MRS data, as extracted from their native format. We may now preprocess these data:
@@ -32,8 +32,8 @@ MRSCont = OspreyFit(MRSCont);
 Modeling results are added to the MRSCont.fit, including results tables. If we have structural data, we can coregister our voxels, and perform tissue segmentation:
 
 ```octave
-MRScont = OspreyCoreg(MRSCont);
-MRScont = OspreySeg(MRSCont);
+MRSCont = OspreyCoreg(MRSCont);
+MRSCont = OspreySeg(MRSCont);
 ```
 
 MRSCont now has sub-structures relating to voxel masks and volumes, MRSCont.coreg, and tissue segmentation results in MRSCont.seg.

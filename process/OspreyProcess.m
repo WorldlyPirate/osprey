@@ -391,15 +391,20 @@ for kk = 1:MRSCont.nDatasets(1) %Subject loop
             % actually have negative polarity, but end up positive in the data, so
             % that the spectrum needs to be flipped.
             if ~isfield(MRSCont.opts.SubSpecAlignment, 'polResidCr')
-                raw_Cr     = op_freqrange(raw,2.8,3.2);
-                % Determine the polarity of the respective peak: if the absolute of the
-                % maximum minus the absolute of the minimum is positive, the polarity
-                % of the respective peak is positive; if the absolute of the maximum
-                % minus the absolute of the minimum is negative, the polarity is negative.
-                polResidCr = abs(max(real(raw_Cr.specs))) - abs(min(real(raw_Cr.specs)));
-                polResidCr = squeeze(polResidCr);
-                polResidCr(polResidCr<0) = -1;
-                polResidCr(polResidCr>0) = 1;
+                if ~isfield(MRSCont.opts.SubSpecAlignment, 'PreservePolarity') || ...
+                    (isfield(MRSCont.opts.SubSpecAlignment, 'PreservePolarity') && ~MRSCont.opts.SubSpecAlignment.PreservePolarity)
+                    raw_Cr     = op_freqrange(raw,2.8,3.2);
+                    % Determine the polarity of the respective peak: if the absolute of the
+                    % maximum minus the absolute of the minimum is positive, the polarity
+                    % of the respective peak is positive; if the absolute of the maximum
+                    % minus the absolute of the minimum is negative, the polarity is negative.
+                    polResidCr = abs(max(real(raw_Cr.specs))) - abs(min(real(raw_Cr.specs)));
+                    polResidCr = squeeze(polResidCr);
+                    polResidCr(polResidCr<0) = -1;
+                    polResidCr(polResidCr>0) = 1;
+                else
+                    polResidCr = 1;
+                end
             else
                 polResidCr = MRSCont.opts.SubSpecAlignment.polResidCr;
             end
@@ -602,9 +607,9 @@ for kk = 1:MRSCont.nDatasets(1) %Subject loop
                 raw_no_subspec_aling = raw;
 
                 % Correct the frequency axis so that Cr appears at 3.027 ppm
-                [refShift_SubSpecAlign, ~] = osp_XReferencing(raw,[3.03 3.22],[1 1],[1.85 4.2]);% determine frequency shift
+                [refShift_SubSpecAlign, ~] = osp_XReferencing(raw,[3.03 3.22],[1 1],[1.85 3.9]);% determine frequency shift
                 if abs(refShift_SubSpecAlign) > 10 % This a huge shift. Most likley wrong and we will try it again with tNAA only
-                    [refShift_SubSpecAlign, ~] = osp_XReferencing(raw,2.01,1,[1.85 4.2]);% determine frequency shift
+                    [refShift_SubSpecAlign, ~] = osp_XReferencing(raw,2.01,1,[1.85 3.9]);% determine frequency shift
                 end
 
                 % Apply initial referencing shift
@@ -672,9 +677,13 @@ for kk = 1:MRSCont.nDatasets(1) %Subject loop
 
 %%          %%% 8. REFERENCE SPECTRUM CORRECTLY TO FREQUENCY AXIS AND PHASE SIEMENS
             %%% DATA
-            [refShift, ~] = osp_XReferencing(raw,[3.03 3.22],[1 1],[1.85 4.2]);% determine frequency shift
-            if abs(refShift) > 10 % This a huge shift. Most likley wrong and we will try it again with tNAA only
-                [refShift, ~] = osp_XReferencing(raw,2.01,1,[1.85 4.2]);% determine frequency shift
+            if MRSCont.flags.isPhantom
+                [refShift, ~, ~] = osp_PhantomReferencing(raw);
+            else
+                [refShift, ~] = osp_XReferencing(raw,[3.03 3.22],[1 1],[1.85 4.2]);% determine frequency shift
+                if abs(refShift) > 10 % This a huge shift. Most likley wrong and we will try it again with tNAA only
+                    [refShift, ~] = osp_XReferencing(raw,2.01,1,[1.85 4.2]);% determine frequency shift
+                end
             end
             [raw]             = op_freqshift(raw,-refShift);            % Reference spectra by cross-correlation
             if exist('raw_no_subspec_aling','var')
@@ -736,18 +745,18 @@ for kk = 1:MRSCont.nDatasets(1) %Subject loop
                 end
             end
             if MRSCont.flags.hasRef
-                MRSCont.QM.SNR.ref(ref_ll,kk)    = op_getSNR(MRSCont.processed.ref{kk});
-                MRSCont.QM.FWHM.ref(ref_ll,kk)   = op_getLW(MRSCont.processed.ref{kk},4.2,5.2);
+                MRSCont.QM.SNR.ref(ref_ll,kk)    = op_getSNR(MRSCont.processed.ref{kk},3.7,5.7);
+                MRSCont.QM.FWHM.ref(ref_ll,kk)   = op_getLW(MRSCont.processed.ref{kk},3.7,5.7);
                 MRSCont.processed.ref{kk}.QC_names = {'water'};
             end
             if MRSCont.flags.hasWater
-                MRSCont.QM.SNR.w(w_ll,kk)    = op_getSNR(MRSCont.processed.w{kk});
-                MRSCont.QM.FWHM.w(w_ll,kk)   = op_getLW(MRSCont.processed.w{kk},4.2,5.2);
+                MRSCont.QM.SNR.w(w_ll,kk)    = op_getSNR(MRSCont.processed.w{kk},3.7,5.7);
+                MRSCont.QM.FWHM.w(w_ll,kk)   = op_getLW(MRSCont.processed.w{kk},3.7,5.7);
                 MRSCont.processed.w{kk}.QC_names = {'water'};
             end
             if MRSCont.flags.hasMMRef
-                MRSCont.QM.SNR.mm_ref(mm_ref_ll,kk)    = op_getSNR(MRSCont.processed.mm_ref{kk});
-                MRSCont.QM.FWHM.mm_ref(mm_ref_ll,kk)   = op_getLW(MRSCont.processed.mm_ref{kk},4.2,5.2);
+                MRSCont.QM.SNR.mm_ref(mm_ref_ll,kk)    = op_getSNR(MRSCont.processed.mm_ref{kk},3.7,5.7);
+                MRSCont.QM.FWHM.mm_ref(mm_ref_ll,kk)   = op_getLW(MRSCont.processed.mm_ref{kk},3.7,5.7);
                 MRSCont.processed.mm_ref{kk}.QC_names = {'water'};
             end
         end
@@ -827,7 +836,7 @@ if MRSCont.opts.savePDF
 end
 
 % Optional: write edited files to LCModel .RAW files
-if MRSCont.opts.saveLCM && ~MRSCont.flags.isPRIAM && ~MRSCont.flags.isMRSI
+if MRSCont.opts.saveLCM && ~MRSCont.flags.isPRIAM && ~MRSCont.flags.isMRSI && MRSCont.nDatasets(2) == 1
     [MRSCont] = osp_saveLCM(MRSCont);
 end
 

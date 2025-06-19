@@ -50,12 +50,11 @@ sqzDims=twix_obj.image.sqzDims;
 
 %Check if the twix file is from a VE version
 if contains(twix_obj.hdr.Dicom.SoftwareVersions, 'E11')
-    twix_obj.image.softwareVersion = 've';
-    version=twix_obj.image.softwareVersion;
+    version='ve';
 end
-if contains(twix_obj.hdr.Dicom.SoftwareVersions, 'XA30')
-    twix_obj.image.softwareVersion = 'XA30';
-    version=twix_obj.image.softwareVersion;
+if contains(twix_obj.hdr.Dicom.SoftwareVersions, 'XA')
+    index = strfind(twix_obj.hdr.Dicom.SoftwareVersions,'XA');
+    version=twix_obj.hdr.Dicom.SoftwareVersions(index:index+3);
 end
 
 %find out what sequence, the data were acquired with.  If this is a
@@ -77,8 +76,11 @@ ishdSPECIAL=~isempty(strfind(sequence,'md_dvox_special')); %Is this Masoumeh Deh
 isjnMP=~isempty(strfind(sequence,'jn_MEGA_GABA')); %Is this Jamie Near's MEGA-PRESS sequence?
 isjnseq=~isempty(strfind(sequence,'jn_')); %Is this another one of Jamie Near's sequences?
 isWIP529=~isempty(strfind(sequence,'edit_529'));%Is this WIP 529 (MEGA-PRESS)?
-ismodWIP=(~isempty(strfind(sequence,'\svs_edit')) && isempty(strfind(sequence,'edit_859'))); %Modified WIP
-isWIP859=~isempty(strfind(sequence,'edit_859'));%Is this WIP 859 (MEGA-PRESS)?
+ismodWIP=((~isempty(strfind(sequence,'\svs_edit'))||...
+        ~isempty(strfind(sequence,'\wip_svs_edit'))) && ...
+        (isempty(strfind(sequence,'edit_859')) && isempty(strfind(sequence,'univ')))); %Modified WIP
+isWIP859=~isempty(strfind(sequence,'edit_859'))||...;%Is this WIP 859 (MEGA-PRESS)?
+        ~isempty(strfind(sequence,'WIP_859'));%Is this WIP 859 (MEGA-PRESS)? Other naming
 isTLFrei=~isempty(strfind(sequence,'md_svs_edit')) ||... %Is Thomas Lange's MEGA-PRESS sequence
          ~isempty(strfind(sequence,'md_svs_slaser_edit')); %Is Thomas Lange's MEGA-s-LASER sequence
 isMinn_eja=~isempty(strfind(sequence,'eja_svs_')); %Is this one of Eddie Auerbach's (CMRR, U Minnesota) sequences?
@@ -88,8 +90,11 @@ isMinn_dkd=~isempty(strfind(sequence,'svs_slaser_dkd')) ||...   % ... or Dinesh 
 isSiemens=(~isempty(strfind(sequence,'svs_se')) ||... %Is this the Siemens PRESS seqeunce?
             ~isempty(strfind(sequence,'svs_st'))) && ... % or the Siemens STEAM sequence?
             isempty(strfind(sequence,'eja_svs'));    %And make sure it's not 'eja_svs_steam'.
-isUniversal = ~isempty(strfind(sequence,'univ')) ||... %Is JHU universal editing sequence
-              ~isempty(strfind(sequence,'smm_svs_herc')); % Is Pavi's HERCULES sequence
+isUniversal = ~isempty(strfind(sequence,'univ')) ||...                  % Is JHU universal editing sequence
+              ~isempty(strfind(sequence,'smm_svs_herc')) ||...          % Is Pavi's HERCULES sequence
+              ~isempty(strfind(sequence,'svs_herc_gls')) ||...          % Is Gize's HERCULES sequence
+              ~isempty(strfind(sequence,'svs_se_herc_gls_v2')) || ...   % Is Gize's HERCULES sequence v2
+              ~isempty(strfind(sequence,'smm_svs_herm'));               % Is Pavi's HERMES sequence
 isDondersMRSfMRI = contains(sequence,'moco_nav_set'); %Is combined fMRI-MRS sequence implemented at Donders Institute NL
 isConnectom = contains(twix_obj.hdr.Dicom.ManufacturersModelName,'Connectom'); %Is from Connectom scanner (Apparently svs_se Dims are not as expected for vd)
 
@@ -116,6 +121,8 @@ elseif isMinn_eja || isMinn_dkd
             seq = 'SLASER';
         elseif ~isempty(strfind(sequence,'steam'))
             seq = 'STEAM';
+        elseif ~isempty(strfind(sequence,'mpress'))
+            seq = 'MEGAPRESS';
         else
             seq = 'PRESS';
         end
@@ -153,10 +160,19 @@ end
 %25 Oct 2018: Due to a recent change, the VE version of Jamie Near's MEGA-PRESS
 %sequence also falls into this category.
 if isSpecial ||... %Catches Ralf Mekle's and CIBM version of the SPECIAL sequence
-        ((strcmp(version,'vd') || strcmp(version,'ve') || strcmp(version,'XA30')) && isjnSpecial) ||... %and the VD/VE versions of Jamie Near's SPECIAL sequence
-        ((strcmp(version,'vd') || strcmp(version,'ve') || strcmp(version,'XA30')) && isjnMP);  %and the VD/VE versions of Jamie Near's MEGA-PRESS sequence
+        ((strcmp(version,'vd') || strcmp(version,'ve') || contains(version,'XA')) && isjnSpecial) ||... %and the VD/VE versions of Jamie Near's SPECIAL sequence
+        ((strcmp(version,'vd') || strcmp(version,'ve') || contains(version,'XA')) && isjnMP);  %and the VD/VE versions of Jamie Near's MEGA-PRESS sequence
     squeezedData=squeeze(dOut.data);
-    if twix_obj.image.NCol>1 && twix_obj.image.NCha>1
+    % GO 3/2025: Adding a case where NRep>1, which adds a fifth dimension
+    % to everything
+    if twix_obj.image.NCol>1 && twix_obj.image.NCha>1 && twix_obj.image.NAve>1 && twix_obj.image.NRep>1
+        data(:,:,:,1,:)=squeezedData(:,:,[1:2:end-1],:);
+        data(:,:,:,2,:)=squeezedData(:,:,[2:2:end],:);
+        % Permute so that the 'Set' dimension containing the SPECIAL
+        % sub-specs remains last
+        data = permute(data, [1, 2, 3, 5, 4]);
+        sqzSize=[sqzSize(1) sqzSize(2) sqzSize(3)/2 sqzSize(4) 2];
+    elseif twix_obj.image.NCol>1 && twix_obj.image.NCha>1
         data(:,:,:,1)=squeezedData(:,:,[1:2:end-1]);
         data(:,:,:,2)=squeezedData(:,:,[2:2:end]);
         sqzSize=[sqzSize(1) sqzSize(2) sqzSize(3)/2 2];
@@ -199,7 +215,7 @@ fids=double(squeeze(data));
 
 %noticed that in the Siemens PRESS and STEAM sequences, there is sometimes
 %an extra dimension containing unwanted reference scans or something.  Remove them here.
-if isSiemens && (strcmp(version,'vd') || strcmp(version,'ve') || strcmp(version,'XA30')) && strcmp(sqzDims{end},'Phs')
+if isSiemens && (strcmp(version,'vd') || strcmp(version,'ve') || contains(version,'XA')) && strcmp(sqzDims{end},'Phs')
     sqzDims=sqzDims(1:end-1);
     sqzSize=sqzSize(1:end-1);
     if ndims(fids)==4
@@ -266,8 +282,45 @@ if isMinn_dkd
     end
 end
 
+% Product Siemens PRESS/STEAM can also include water reference scans. 
+if isSiemens && (matches(seq,'PRESS')||matches(seq,'STEAM')) && length(sqzSize)>3
+    wRefs=true;
+    
+    % First, separate out the reference scans:
+    Ind = find(matches(sqzDims,'Phs'));
+    if ~(sqzSize(Ind)==2)
+        error('Expecting 2 entries in the "Phs" dimension, we found %i!',Ind);
+    end
+    fids_w = squeeze(GetSlice(fids,Ind,1));
+    fids   = squeeze(GetSlice(fids,Ind,2));
+    sqzDims(Ind) = [];
+    sqzSize(Ind) = [];
+    
+    % Then, concat the averages and repetitions (if they exist)
+    if sqzSize(matches(sqzDims,'Rep'))>1
+        DimAv = find(matches(sqzDims,'Ave'));
+        DimRep = find(matches(sqzDims,'Rep'));
+        
+        % Reshape the fids:
+        NewSize = sqzSize;
+        NewSize(DimAv) = NewSize(DimAv) * NewSize(DimRep);
+        NewSize(DimRep) = [];
+        fids = reshape(fids,NewSize);
+
+        sqzSize = size(fids);
+        sqzDims(DimRep)=[];        
+        
+        % Reshape the water fids, throwing out the zero entries
+        NZ_Avs = find(any(~(squeeze(sum(abs(fids_w),[1,2]))==0),DimRep-2)); % Finds water fids in "averages" which are non-zero
+        fids_w =fids_w(:,:,NZ_Avs,:);
+        Sz = size(fids_w);
+        fids_w = reshape(fids_w,Sz(1),Sz(2),[]);
+    end
+
+end
+
 % Extract voxel dimensions
-if (strcmp(version,'vd') || strcmp(version,'vb') || strcmp(version,'XA30'))
+if (strcmp(version,'vd') || strcmp(version,'vb') || contains(version,'XA'))
     TwixHeader.VoI_RoFOV     = twix_obj.hdr.Config.VoI_RoFOV; % Voxel size in readout direction [mm]
     TwixHeader.VoI_PeFOV     = twix_obj.hdr.Config.VoI_PeFOV; % Voxel size in phase encoding direction [mm]
     TwixHeader.VoIThickness  = twix_obj.hdr.Config.VoI_SliceThickness; % Voxel size in slice selection direction [mm]
@@ -344,11 +397,16 @@ else
 end
 
 %Now index the dimension of the averages
-if strcmp(version,'vd') || strcmp(version,'ve') || strcmp(version,'XA30')
+if strcmp(version,'vd') || strcmp(version,'ve') || contains(version,'XA')
     if isMinn_eja || isMinn_dkd || isConnectom
         dims.averages=find(strcmp(sqzDims,'Set'));
     else
+        % GO 6/2024: Encountered a VD13 Siemens product sequence that had
+        % transients in Set, not in Ave... 
         dims.averages=find(strcmp(sqzDims,'Ave'));
+        if isempty(dims.averages)
+            dims.averages=find(strcmp(sqzDims,'Set'));
+        end
     end
 else
     dims.averages=find(strcmp(sqzDims,'Set'));
@@ -385,7 +443,7 @@ end
 if ~isempty(dimsToIndex)
     %Now index the dimension of the sub-spectra
     if isjnseq  || isSpecial
-        if strcmp(version,'vd') || strcmp(version,'ve')
+        if strcmp(version,'vd') || strcmp(version,'ve') || contains(version,'XA')
             dims.subSpecs=find(strcmp(sqzDims,'Set'));
         else
             dims.subSpecs=find(strcmp(sqzDims,'Ida'));
@@ -655,8 +713,8 @@ end
 
 if isWIP529 || isWIP859
     leftshift = twix_obj.image.cutOff(1,1);
-elseif isSiemens && (~isMinn && ~isConnectom)
-    if ~strcmp(version,'ve') && ~strcmp(version,'XA30')
+elseif isSiemens && (~(isMinn_eja || isMinn_dkd) && ~isConnectom)
+    if ~strcmp(version,'ve') && ~contains(version,'XA')
         leftshift = twix_obj.image.freeParam(1);
     else
        leftshift = twix_obj.image.iceParam(5,1);
@@ -748,7 +806,7 @@ out.flags.isHERMES = 0;
 out.flags.isHERCULES = 0;
 out.flags.isPRIAM = 0;
 out.flags.isMRSI = 0;
-if strcmp(seq,'PRESS') || strcmp(seq,'STEAM') || strcmp(seq,'SLASER')
+if strcmp(seq,'PRESS') || strcmp(seq,'STEAM') || strcmp(seq,'SLASER') || strcmp(seq,'SPECIAL')
     out.flags.isUnEdited = 1;
 end
 if contains(seq,'MEGA')
@@ -824,7 +882,7 @@ if wRefs
     out_w.flags.isHERCULES = 0;
     out_w.flags.isPRIAM = 0;
     out_w.flags.isMRSI = 0;
-    if strcmp(seq,'PRESS') || strcmp(seq,'STEAM') || strcmp(seq,'SLASER')
+    if strcmp(seq,'PRESS') || strcmp(seq,'STEAM') || strcmp(seq,'SLASER') || strcmp(seq,'SPECIAL')
         out_w.flags.isUnEdited = 1;
     end
     if contains(seq,'MEGA')
@@ -837,9 +895,36 @@ if wRefs
         out_w.flags.isHERCULES = 1;
     end
 else
-    %No water reference data found.  Returning empty struct for out_w:
-    disp('No water reference data found.  Returning empty field');
+    %No integrated water reference data found.  Returning empty struct for out_w:
+    disp('No integrated water reference data found.  Returning empty field');
     out_w=[];
 end
 
+end
 %DONE
+
+function[SlicedArray] = GetSlice(Array, Dim, Idx)
+%% function[SlicedArray] = GetSlice(Array, Dim, Idx)
+%
+% Description: Takes a slice of multi-dimensional array in dimension "Dim"
+% at the specified index: Idx.
+%
+% Input:     Array = Aray to be sliced 
+%            Dim = Dimension in which to slice
+%            Idx = Index (or indices) to extract from dimension "Dim"
+% Output:    SlicedArray = Subset of array
+%
+% Example usage:
+%   For a 7D array, "Data":
+%
+%   SlicedData = GetSlice(Data, 5, 1:5);
+%       returns 7D array but with only the 1st 5 entries in 5th dim
+%
+% C.W. Davies-Jenkins, Johns Hopkins University 2024
+
+Specification = repmat({':'}, 1, ndims(Array)); % Create an vector whose length matches the dimensionality of the Array
+Specification{Dim} = Idx; % At the specified Dim, add the indices we want to extract
+
+SlicedArray = Array(Specification{:}); % Apply the slicing!
+
+end

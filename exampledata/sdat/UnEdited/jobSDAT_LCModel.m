@@ -191,7 +191,7 @@ opts.fit.fitMM              = 1;                % OPTIONS:    - 0 (no)
 % Specify LCModel-format basis set (.BASIS)
 % If no basis set file is provided Osprey will generate the .BASIS file
 % from Osprey's database
-opts.fit.basisSetFile       = which('3T_PRESS_Philips_35ms_noMM.BASIS');
+% opts.fit.basisSetFile       = {which('3T_press_Philips_35ms_noMM.BASIS')};
 
 
 % Specify LCModel-type control file (.CONTROL)
@@ -199,6 +199,18 @@ opts.fit.basisSetFile       = which('3T_PRESS_Philips_35ms_noMM.BASIS');
 % minimum control file for you.
 % opts.fit.controlFile        = '';
 
+
+% Specify custom LCModel binary path
+% You can set the path to a custom-compiled LCModel binary here. If left
+% empty, Osprey will try to use one of the pre-compiled binaries it is
+% shipped with.
+opts.fit.customLCModelBinary = 'C:\Users\goeltzs1\Documents\MATLAB\osprey\libraries\LCModel\custom\LCModel.exe';
+%%% ----- END LCMODEL FITTING OPTIONS -----
+
+
+% Optional: Deface the structural images in the Coreg/Seg figures for HIPAA
+% compliance 
+opts.img.deface             = 0;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 

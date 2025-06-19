@@ -226,6 +226,22 @@ switch MRSCont.vendor
         switch MRSCont.datatype
             case 'P'
                 [MRSCont] = osp_LoadP(MRSCont);
+                if MRSCont.flags.hasWater
+                    MRSCont.opts.MultipleSpectra.w = fliplr(size(MRSCont.files_w));
+                    if length(MRSCont.opts.MultipleSpectra.w) > 1
+                        tempDatasets(end+1) = MRSCont.opts.MultipleSpectra.w(2);
+                    else
+                        MRSCont.opts.MultipleSpectra.w(2) = 1;
+                    end
+                    if MRSCont.opts.MultipleSpectra.w(2) < maxDatasets
+                        MRSCont.opts.MultipleSpectra.w = ones(1,maxDatasets);
+                    else if maxDatasets > 1
+                        MRSCont.opts.MultipleSpectra.w = [1:MRSCont.opts.MultipleSpectra.w(2)];
+                        else
+                        MRSCont.opts.MultipleSpectra.w = [1:MRSCont.nDatasets(1)];
+                        end
+                    end
+                end
             otherwise
                 msg = 'Data type not supported. Please contact the Osprey team (gabamrs@gmail.com).';
                 fprintf(msg);
@@ -314,6 +330,24 @@ if MRSCont.flags.isUnEdited
                 for pp = 1:raw.sz(raw.dims.subSpecs)
                     subspecsToAdd = op_takesubspec(raw, pp);
                     temp = op_concatAverages(temp, subspecsToAdd);
+                end
+                % Save back to MRSCont
+                raw = temp;
+                MRSCont.raw{kk} = raw;
+            end
+
+        elseif MRSCont.flags.isSPECIAL
+            % To capture SPECIAL cases that have both subspecs *and*
+            % repetitions (which are along the 'extras' dimension), we'll
+            % just re-sort the repetitions dimension into 'averages'
+            % dimension
+            if raw.dims.extras ~= 0
+                % Generate empty struct
+                temp = struct;
+                % Extract extras and add to the temporary struct
+                for pp = 1:raw.sz(raw.dims.extras)
+                    extrasToAdd = op_takeextras(raw, pp);
+                    temp = op_concatAverages(temp, extrasToAdd);
                 end
                 % Save back to MRSCont
                 raw = temp;

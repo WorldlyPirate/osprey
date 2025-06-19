@@ -46,7 +46,7 @@ end
 
 fprintf(fid,'\n\t%s',['"dataScenario": "' app.DataScenarioDropDown.Value '",']);
 fprintf(fid,'\n\t%s',['"MM3coModel": "' app.MM3coDropDown.Value '",']);
-fprintf(fid,'\n\t%s',['"FWHMMM3co": "' app.FWHMMM3coEditField.Value '",']);
+fprintf(fid,'\n\t%s',['"FWHMMM3co": "' num2str(app.FWHMMM3coEditField.Value) '",']);
 fprintf(fid,'\n\t%s',['"SpecReg": "' app.SpectralRegistrationDropDown.Value '",']);
 fprintf(fid,'\n\t%s',['"SubSpecAlignment": "' app.SubspectraAligmentDropDown.Value '",']);
 fprintf(fid,'\n\t%s',['"UnstableWater": "' num2str(app.unstablewaterCheckBox.Value) '",']);
@@ -82,14 +82,14 @@ switch app.IncludedMetabolitesDropDown.Value
         if app.GluCheckBox.Value, fprintf(fid,'%s',',"Glu"'); end
         if app.GlyCheckBox.Value, fprintf(fid,'%s',',"Gly"'); end
         if app.H2OCheckBox.Value, fprintf(fid,'%s',',"H2O"'); end
-        if app.InsCheckBox.Value, fprintf(fid,'%s',',"mI"'); end
+        if app.mICheckBox.Value, fprintf(fid,'%s',',"mI"'); end
         if app.LacCheckBox.Value, fprintf(fid,'%s',',"Lac"'); end
         if app.NAACheckBox.Value, fprintf(fid,'%s',',"NAA"'); end
         if app.NAAGCheckBox.Value, fprintf(fid,'%s',',"NAAG"'); end
         if app.PChCheckBox.Value, fprintf(fid,'%s',',"PCh"'); end
         if app.PCrCheckBox.Value, fprintf(fid,'%s',',"PCr"'); end
         if app.PECheckBox.Value, fprintf(fid,'%s',',"PE"'); end
-        if app.ScylloCheckBox.Value, fprintf(fid,'%s',',"sI"'); end
+        if app.sICheckBox.Value, fprintf(fid,'%s',',"sI"'); end
         if app.SerCheckBox.Value, fprintf(fid,'%s',',"Ser"'); end
         if app.TauCheckBox.Value, fprintf(fid,'%s',',"Tau"'); end
         if app.TyrosCheckBox.Value, fprintf(fid,'%s',',"Tyros",'); end

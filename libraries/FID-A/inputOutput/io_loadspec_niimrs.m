@@ -279,9 +279,12 @@ if allDims(1)*allDims(2)*allDims(3) == 1 % x=y=z=1
         end
     end
 
-    if length(sqzDims) > length(size(fids)) % The case for 1 average with multiple subspectra
-        if dims.averages < dims.subSpecs
+    if length(sqzDims) > length(size(fids)) 
+        if dims.averages < dims.subSpecs % The case for 1 average with multiple subspectra
             dims.subSpecs = 0;
+        end
+        if dims.averages < dims.extras % The case for 1 average with multiple subspectra
+            dims.extras = 0;
         end
         sqzDims = {};
         dimsFieldNames = fieldnames(dims);
@@ -291,10 +294,7 @@ if allDims(1)*allDims(2)*allDims(3) == 1 % x=y=z=1
                 sqzDims{end+1} = dimsFieldNames{rr};
             end
         end
-        subspecs    = 0;
-        if rawSubspecs > 0
-            subspecs    = rawSubspecs;
-        end
+        subspecs    = 1;
     end
 
     if length(sqzDims)==5
@@ -344,8 +344,26 @@ if allDims(1)*allDims(2)*allDims(3) == 1 % x=y=z=1
     sz=size(fids);
 
     %Remove phase cycle for Philips data
-    if isfield(hdr_ext, 'Manufacturer') && (strcmp(hdr_ext.Manufacturer,'Philips') || strcmp(hdr_ext.Manufacturer,'GE')) && undoPhaseCycle
-        fids = fids .* repmat(conj(fids(1,:,:,:))./abs(fids(1,:,:,:)),[size(fids,1) 1]);
+    if isfield(hdr_ext, 'ProtocolName') && contains(hdr_ext.ProtocolName,'HBCD')
+        undoPhaseCycle = 1;
+    end
+    if isfield(hdr_ext, 'Manufacturer') && strcmp(hdr_ext.Manufacturer,'Philips')  && undoPhaseCycle
+        if hdr_ext.WaterSuppressed && hdr_ext.EchoTime == 0.080
+            fids(:,:,:,1:2:end) = -fids(:,:,:,1:2:end);
+        end
+        if hdr_ext.WaterSuppressed && hdr_ext.EchoTime == 0.035
+            fids(:,:,2:2:end,:) = -fids(:,:,2:2:end,:);
+        end
+    end
+    if isfield(hdr_ext, 'Manufacturer') && strcmp(hdr_ext.Manufacturer,'GE') && ~strcmp(hdr_ext.SequenceName,'hbcd2') && undoPhaseCycle 
+        if hdr_ext.WaterSuppressed && hdr_ext.EchoTime == 0.080
+            fids(:,:,2:2:end,:) = -fids(:,:,2:2:end,:);
+        end
+    else if isfield(hdr_ext, 'Manufacturer') && strcmp(hdr_ext.Manufacturer,'GE') && strcmp(hdr_ext.SequenceName,'hbcd2') && undoPhaseCycle
+            if ~hdr_ext.WaterSuppressed && hdr_ext.EchoTime == 0.080
+                fids = -fids;
+            end
+        end
     end
 
     %Compared to NIfTI MRS, FID-A needs the conjugate
@@ -488,6 +506,7 @@ end
 
 % Store additional information from the nii header
     if out.dims.extras
+        dim_number = out.dims.extras;
         if ischar(out.seq)
             temp_seq = out.seq;
             out = rmfield(out,'seq');
@@ -500,26 +519,28 @@ end
             out.centerFreq(ex) = out.centerFreq(1);
             out.txfrq(ex) = out.txfrq(1);
 
-            if isfield(hdr_ext.(['dim_' num2str(dim_number) '_header']), 'EchoTime')
-                out.te(ex) = hdr_ext.(['dim_' num2str(dim_number) '_header']).EchoTime(ex) * 1e3; % convert to [ms]
-                out.extra_names{ex} = ['TE_' num2str(ex)];
-                out.exp_var(ex) = out.te(ex);
-            else
-                out.te(ex) = out.te(1);
-            end
+            % ARC202403 The following may be overwritten from the (optional) dim_{N}_header values, if present
+            out.te(ex) = out.te(1);
+            out.tr(ex) = out.tr(1);
 
-            if isfield(hdr_ext.(['dim_' num2str(dim_number) '_header']), 'RepetitionTime')
-                out.tr(ex) = hdr_ext.(['dim_' num2str(dim_number) '_header']).RepetitionTime(ex) * 1e3; % convert to [ms]
-                out.extra_names{ex} = ['TR_' num2str(ex)];
-                out.exp_var(ex) = out.tr(ex);
-            else
-                out.tr(ex) = out.tr(1);
-            end
+            if isfield(hdr_ext, ['dim_' num2str(dim_number) '_header'])
+                if isfield(hdr_ext.(['dim_' num2str(dim_number) '_header']), 'EchoTime')
+                    out.te(ex) = hdr_ext.(['dim_' num2str(dim_number) '_header']).EchoTime(ex) * 1e3; % convert to [ms]
+                    out.extra_names{ex} = ['TE_' num2str(ex)];
+                    out.exp_var(ex) = out.te(ex);
+                end
 
-            if isfield(hdr_ext.(['dim_' num2str(dim_number) '_header']), 'InversionTime')
-                out.ti(ex) = hdr_ext.(['dim_' num2str(dim_number) '_header']).InversionTime(ex) * 1e3; % convert to [ms]
-                out.extra_names{ex} = ['TI_' num2str(ex)];
-                out.exp_var(ex) = out.ti(ex);
+                if isfield(hdr_ext.(['dim_' num2str(dim_number) '_header']), 'RepetitionTime')
+                    out.tr(ex) = hdr_ext.(['dim_' num2str(dim_number) '_header']).RepetitionTime(ex) * 1e3; % convert to [ms]
+                    out.extra_names{ex} = ['TR_' num2str(ex)];
+                    out.exp_var(ex) = out.tr(ex);
+                end
+
+                if isfield(hdr_ext.(['dim_' num2str(dim_number) '_header']), 'InversionTime')
+                    out.ti(ex) = hdr_ext.(['dim_' num2str(dim_number) '_header']).InversionTime(ex) * 1e3; % convert to [ms]
+                    out.extra_names{ex} = ['TI_' num2str(ex)];
+                    out.exp_var(ex) = out.ti(ex);
+                end
             end
         end
         out.extras = out.sz(out.dims.extras);
